@@ -15,6 +15,7 @@ type Dynbuf = {
     data: Buffer,
     length: number
 }
+
 function bufPush(buf : Dynbuf, data: Buffer): void {
   const newlen = buf.length + data.length
   if (buf.data.length < newlen) {
@@ -29,22 +30,27 @@ function bufPush(buf : Dynbuf, data: Buffer): void {
   data.copy(buf.data, buf.length, 0)
   buf.length = newlen
 }
+
 function soInit(socket: net.Socket) {
+  console.log("soInit activated")
     const conn: TCPconn = {
         socket: socket, err: null, ended: false, reader: null,
     }
-    socket.on('data', (data: Buffer) => {
+  socket.on('data', (data: Buffer) => {
+    console.log("Data perceived", data)
         console.assert(!!conn.reader)
         conn.socket.pause()
         conn.reader!.resolve(data)
         conn.reader = null
     })
-    socket.on('end', () => {
+  socket.on('end', () => {
+      console.log("Connection ending....")
         conn.ended = true
         if (conn.reader) {
             conn.reader.resolve(Buffer.from(''))
             conn.reader = null
         }
+    process.exit(0)
     })
     socket.on('error', (err: Error) => {
         conn.err = err
@@ -57,6 +63,7 @@ function soInit(socket: net.Socket) {
 }
 
 function soRead(conn: TCPconn): Promise<Buffer> {
+  console.log("soRead activated\n")
     console.assert(!conn.reader)
     return new Promise((resolve, reject) => {
         if (conn.err) {
