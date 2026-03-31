@@ -1,31 +1,19 @@
-import { bufPop, bufPush } from "./buffer"
-import {type HTTPReq, type HTTPRes, type BodyReader, type TCPconn, type Dynbuf} from "./types"
 import * as net from "net"
+import {type Dynbuf} from "./types"
+import type { SHA512_256 } from "bun"
 
-
-async function serveClient(conn : TCPconn): Promise<void> {
-  const buf: Dynbuf = { data: Buffer.alloc(0), length: 0 }
-  while (true) {
-    const msg: null | HTTPReq = cutmessage(buf) 
-    if (!msg) {
-      const data = await soRead(conn)
-      bufPush(buf, data)
-      
-      if (data.length === 0 && buf.length === 0) {
-        return
-      }
-      if (data.length === 0) {
-        throw new HTTPError(400, "Unexpected EOF")
-      }
-      continue
+function bufPush(buf: Dynbuf, data: Buffer): void {
+  const newlen = buf.length + data.length
+  if (buf.data.length < newlen) {
+    let cap = Math.max(buf.data.length, 32)
+    while (cap < newlen) {
+      cap *= 2
     }
-    const reqBody: BodyReader = readerFromReq(conn, buf, msg)
-    const res: HTTPRes = await handleReq(msg, reqBody)
-    await writeHTTPResp(conn, res)
-    
-    if (msg.version === "1.0") {
-      return
-    }
-    while((await reqBody.read()).length > 0) { }
+    const grown = Buffer.alloc(cap)
+    buf.data.copy(grown, 0, 0)
+    buf.data = grown
   }
+}
+function bufPop(buf : Dynbuf, len : number) : void {
+  
 }
