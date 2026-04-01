@@ -15,5 +15,27 @@ function bufPush(buf: Dynbuf, data: Buffer): void {
   }
 }
 function bufPop(buf : Dynbuf, len : number) : void {
-  
+  buf.data.copyWithin(0, len, buf.length)
+  buf.length -= len
 }
+function fieldGet(headers: Buffer[], key:string) : Buffer|null {
+  const temp = key.toLowerCase()
+  key = temp
+  for (const header of headers) {
+    const idx = header.indexOf(':'.charCodeAt(0))
+    const headerName = header.subarray(0, idx + 1)
+    if(headerName)
+    
+  }
+}
+function main() {
+  const test : Dynbuf = {
+    data: Buffer.from("Hello"),
+    length : 5
+  }
+  console.log("Before : " ,test.data.toString(), "length :", test.length)
+  bufPop(test, 1)
+  console.log("After : " ,test.data.toString(), "length :", test.length)
+}
+
+main()
