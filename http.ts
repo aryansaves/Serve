@@ -19,23 +19,29 @@ function bufPop(buf : Dynbuf, len : number) : void {
   buf.length -= len
 }
 function fieldGet(headers: Buffer[], key:string) : Buffer|null {
-  const temp = key.toLowerCase()
-  key = temp
+  const keylower = key.toLowerCase()
   for (const header of headers) {
     const idx = header.indexOf(':'.charCodeAt(0))
-    const headerName = header.subarray(0, idx + 1)
-    if(headerName)
-    
-  }
+    if (idx < 0) continue;  
+    const headerName = header.subarray(0, idx).toString('latin1').toLowerCase()
+    if (headerName === keylower) {
+      let value = header.subarray(idx + 1)
+      if (value.length > 0 && value[0] === ' '.charCodeAt(0)) {
+        value = value.subarray(1)
+      }
+      return value
+    }
+  } return null
 }
 function main() {
-  const test : Dynbuf = {
-    data: Buffer.from("Hello"),
-    length : 5
-  }
-  console.log("Before : " ,test.data.toString(), "length :", test.length)
-  bufPop(test, 1)
-  console.log("After : " ,test.data.toString(), "length :", test.length)
+  const headers = [
+      Buffer.from("Host: example.com"),
+      Buffer.from("Content-Length: 100"),
+  ];
+  
+  console.log(fieldGet(headers, "host")?.toString());        // "example.com"
+  console.log(fieldGet(headers, "Content-Length")?.toString()); // "100"
+  console.log(fieldGet(headers, "missing"));               // null
 }
 
 main()
