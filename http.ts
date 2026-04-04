@@ -1,8 +1,19 @@
 import * as net from "net"
 import {type Dynbuf} from "./types"
-import type { SHA512_256 } from "bun"
 
-function bufPush(buf: Dynbuf, data: Buffer): void {
+class HTTPError extends Error{
+  code: number;
+  
+  constructor(code: number, message: string) {
+    super(message)
+    this.code = code
+    this.name = "HTTPError"
+  }
+}
+
+function bufPush(buf: Dynbuf, data: Buffer): void { 
+  // Pushes new data to buffer
+  // expands the buffer acc to the new data length
   const newlen = buf.length + data.length
   if (buf.data.length < newlen) {
     let cap = Math.max(buf.data.length, 32)
@@ -14,11 +25,13 @@ function bufPush(buf: Dynbuf, data: Buffer): void {
     buf.data = grown
   }
 }
-function bufPop(buf : Dynbuf, len : number) : void {
+function bufPop(buf: Dynbuf, len: number): void {
+  // pops the "len" number of character from front like a stack
   buf.data.copyWithin(0, len, buf.length)
   buf.length -= len
 }
-function fieldGet(headers: Buffer[], key:string) : Buffer|null {
+function fieldGet(headers: Buffer[], key: string): Buffer | null {
+  // parses headers
   const keylower = key.toLowerCase()
   for (const header of headers) {
     const idx = header.indexOf(':'.charCodeAt(0))
@@ -33,15 +46,29 @@ function fieldGet(headers: Buffer[], key:string) : Buffer|null {
     }
   } return null
 }
-function main() {
-  const headers = [
-      Buffer.from("Host: example.com"),
-      Buffer.from("Content-Length: 100"),
-  ];
-  
-  console.log(fieldGet(headers, "host")?.toString());        // "example.com"
-  console.log(fieldGet(headers, "Content-Length")?.toString()); // "100"
-  console.log(fieldGet(headers, "missing"));               // null
-}
 
-main()
+function parseRequestLine(line: Buffer): [string, Buffer, string] {
+  // method, uri, version parsing
+  const idxm = line.indexOf(' '.charCodeAt(0))
+  const idxu = line.indexOf(' '.charCodeAt(0), idxm + 1)
+  const idxv = line.indexOf(' '.charCodeAt(0), idxu + 1)
+  if (idxm < 0) {
+    throw new HTTPError(400, 'bad request line');
+  }
+  if (idxu < 0) {
+    throw new HTTPError(400, 'bad request line');
+  }
+  if (idxv !== -1) {
+    throw new HTTPError(400, 'bad request line');
+  }
+  const method = line.subarray(0, idxm).toString('latin1')
+  const uri = line.subarray(idxm + 1, idxu)
+  const version = line.subarray(idxu + 1).toString('latin1')
+  
+  if (version !== "HTTP/1.0" && version !== "HTTP/1.1") {
+    throw new HTTPError(400, 'bad request line');
+  }
+  
+  return [method, uri, version]
+}
+parseRequestLine(Buffer.from("GET /home HTTP/1.1"))
