@@ -92,7 +92,8 @@ function parseHTTPReq(data: Buffer): HTTPReq {
   const [method, uri, version] = parseRequestLine(lines[0]!)
   
   const headers: Buffer[] = []
-  for (let i = 1; i < lines.length; i++) {
+  for (let i = 1; i < lines.length - 1; i++) {
+    if (lines[i]!.length === 0) break;
     const line = lines[i]!
     const h = Buffer.from(line)
     if (!validateHeader(h)) {
@@ -115,4 +116,15 @@ function validateHeader(header : Buffer) : Boolean {
   if (header.includes('\n'.charCodeAt(0))) return false;
   
   return true;
+}
+
+function cutMessage(buf : Dynbuf): HTTPReq | null{
+  const idx = buf.data.indexOf("\r\n\r\n".charCodeAt(0))
+  if (!idx) {
+    return null
+  }
+  const request = buf.data.subarray(0, idx + 4)
+  const parsed = parseHTTPReq(request)
+  bufPop(buf, parsed.toString().length)
+  return parsed
 }
