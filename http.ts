@@ -1,5 +1,6 @@
 import * as net from "net"
 import {type Dynbuf, type HTTPReq} from "./types"
+import { kMaxLength } from "buffer";
 
 class HTTPError extends Error{
   code: number;
@@ -118,13 +119,19 @@ function validateHeader(header : Buffer) : Boolean {
   return true;
 }
 
-function cutMessage(buf : Dynbuf): HTTPReq | null{
-  const idx = buf.data.indexOf("\r\n\r\n".charCodeAt(0))
-  if (!idx) {
+const kMaxHeaderLength = 1024  * 8
+
+function cutMessage(buf: Dynbuf): HTTPReq | null{
+  //
+  const idx = buf.data.subarray(0, buf.length).indexOf('\r\n\r\n')
+  if (idx < 0) {
+    if (buf.length >= kMaxHeaderLength) {
+      throw new HTTPError(413, "header is too large")
+    }
     return null
   }
-  const request = buf.data.subarray(0, idx + 4)
-  const parsed = parseHTTPReq(request)
-  bufPop(buf, parsed.toString().length)
-  return parsed
+  const headerlen = idx + 4
+  const msg = parseHTTPReq(buf.data.subarray(0, headerlen))
+  bufPop(buf, headerlen)
+  return msg
 }
