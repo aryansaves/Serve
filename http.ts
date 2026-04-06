@@ -1,5 +1,5 @@
 import * as net from "net"
-import {type Dynbuf, type HTTPReq} from "./types"
+import {type Dynbuf, type HTTPReq, type BodyReader, type TCPconn} from "./types"
 import { kMaxLength } from "buffer";
 
 class HTTPError extends Error{
@@ -120,9 +120,8 @@ function validateHeader(header : Buffer) : Boolean {
 }
 
 const kMaxHeaderLength = 1024  * 8
-
 function cutMessage(buf: Dynbuf): HTTPReq | null{
-  //
+  // manages buffer
   const idx = buf.data.subarray(0, buf.length).indexOf('\r\n\r\n')
   if (idx < 0) {
     if (buf.length >= kMaxHeaderLength) {
@@ -134,4 +133,29 @@ function cutMessage(buf: Dynbuf): HTTPReq | null{
   const msg = parseHTTPReq(buf.data.subarray(0, headerlen))
   bufPop(buf, headerlen)
   return msg
+}
+
+function readerfromConnLength(conn : TCPconn, buf : Dynbuf, remain : number) : BodyReader {
+  const totalLength = remain
+  
+  return {
+    length: totalLength,
+    read : async () : Promise <Buffer> => {
+      if (remain === 0) {
+        return Buffer.from('')
+      }  
+      if (buf.length === 0) {
+        const data = await soRead(conn)
+        bufPush(buf, data)
+        if (data.length === 0) {
+          throw new Error('Unexpected EOF from HTTP body');
+        }
+        const consume = 
+      }
+    }
+  }
+}
+
+async function soRead(conn : TCPconn) {
+  
 }
