@@ -107,5 +107,12 @@ function parseHTTPReq(data: Buffer): HTTPReq {
      };
 }
 function validateHeader(header : Buffer) : Boolean {
+  const idx = header.indexOf(':'.charCodeAt(0));
+  if (idx <= 0) return false;  // No colon or empty name
   
+  // Check for CR or LF anywhere (injection attack)
+  if (header.includes('\r'.charCodeAt(0))) return false;
+  if (header.includes('\n'.charCodeAt(0))) return false;
+  
+  return true;
 }
