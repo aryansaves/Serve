@@ -71,4 +71,8 @@ function parseRequestLine(line: Buffer): [string, Buffer, string] {
   
   return [method, uri, version]
 }
-parseRequestLine(Buffer.from("GET /home HTTP/1.1"))
+function splitLines(data: Buffer): Buffer[]{
+  return data.toString('latin1')
+    .split('\r\n')
+    .map(s => Buffer.from(s))
+}
