@@ -1,5 +1,5 @@
 import * as net from "net"
-import {type Dynbuf} from "./types"
+import {type Dynbuf, type HTTPReq} from "./types"
 
 class HTTPError extends Error{
   code: number;
@@ -31,7 +31,7 @@ function bufPop(buf: Dynbuf, len: number): void {
   buf.length -= len
 }
 function fieldGet(headers: Buffer[], key: string): Buffer | null {
-  // parses headers
+  // search headers
   const keylower = key.toLowerCase()
   for (const header of headers) {
     const idx = header.indexOf(':'.charCodeAt(0))
@@ -71,8 +71,41 @@ function parseRequestLine(line: Buffer): [string, Buffer, string] {
   
   return [method, uri, version]
 }
+
 function splitLines(data: Buffer): Buffer[]{
+  // splits lines using delimiters
   return data.toString('latin1')
     .split('\r\n')
     .map(s => Buffer.from(s))
+}
+function parseHTTPReq(data: Buffer): HTTPReq {
+  // Whole Request Parsing
+  const lines: Buffer[] = splitLines(data)
+  if (lines.length < 2) {
+      throw new HTTPError(400, 'bad request');
+  }
+  const lastLine = lines[lines.length - 1];
+  if (!lastLine || lastLine.length !== 0) {
+      throw new HTTPError(400, 'bad request');
+  }
+
+  const [method, uri, version] = parseRequestLine(lines[0]!)
+  
+  const headers: Buffer[] = []
+  for (let i = 1; i < lines.length; i++) {
+    const line = lines[i]!
+    const h = Buffer.from(line)
+    if (!validateHeader(h)) {
+      throw new HTTPError(400, 'bad request field');
+    } headers.push(h)
+  }
+  return {
+         method: method,
+         uri: uri,
+         version: version,
+         headers: headers
+     };
+}
+function validateHeader(header : Buffer) : Boolean {
+  
 }

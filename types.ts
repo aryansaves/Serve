@@ -5,7 +5,6 @@ export type HTTPReq = {
   uri: Buffer,
   version : string,
   headers: Buffer[],
-  body: string
 }
 
 export type HTTPRes = {
