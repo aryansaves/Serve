@@ -162,6 +162,37 @@ function readerfromConnLength(conn : TCPconn, buf : Dynbuf, remain : number) : B
   }
 }
 
-async function soRead(conn : TCPconn) {
-  
+function readerFromReq(conn: TCPconn, buf: Dynbuf, req: HTTPReq): BodyReader {
+  const method = req.method
+  let BodyAllowed = true
+  if (method === 'GET' || method === 'HEAD') {
+    BodyAllowed = false
+  }
+  let bodyLen : number = -1
+  const contentlenheader = fieldGet(req.headers, "Content-Length") 
+  if (contentlenheader) {
+    bodyLen = parseInt(contentlenheader.toString())
+    if (isNaN(bodyLen)) {
+      throw new HTTPError(400, "bad Content-Length")
+    }
+  } 
+  const transferEncoding = fieldGet(req.headers, "Transfer-Encoding")
+  let chunked : boolean = false
+  if (transferEncoding && transferEncoding.toString('latin1') === "chunked") {
+      chunked = true
+  }
+  if (!BodyAllowed) {
+    if (bodyLen > 0 || chunked) {
+      throw new HTTPError(400, "HTTP Body not allowed")
+    }
+    bodyLen = 0
+  }
+  if (bodyLen >= 0) {
+    return readerfromConnLength(conn, buf, bodyLen)
+  } else if (chunked) {
+    throw new HTTPError(501, "Chunked Encoding")
+  }
+  else {
+    throw new HTTPError(501, "read to EOF")
+  }
 }
