@@ -171,7 +171,7 @@ function readerFromReq(conn: TCPconn, buf: Dynbuf, req: HTTPReq): BodyReader {
   let bodyLen : number = -1
   const contentlenheader = fieldGet(req.headers, "Content-Length") 
   if (contentlenheader) {
-    bodyLen = parseInt(contentlenheader.toString())
+    bodyLen = parseInt(contentlenheader.toString('latin1'), 10)
     if (isNaN(bodyLen)) {
       throw new HTTPError(400, "bad Content-Length")
     }
