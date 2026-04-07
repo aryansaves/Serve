@@ -150,8 +150,14 @@ function readerfromConnLength(conn : TCPconn, buf : Dynbuf, remain : number) : B
         if (data.length === 0) {
           throw new Error('Unexpected EOF from HTTP body');
         }
-        const consume = 
       }
+      const consume = Math.min(buf.length, remain)
+      remain -= consume
+      
+      const data = Buffer.from(buf.data.subarray(0, consume))
+      bufPop(buf, consume)
+      
+      return data
     }
   }
 }
