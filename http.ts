@@ -1,5 +1,5 @@
 import * as net from "net"
-import {type Dynbuf, type HTTPReq, type BodyReader, type TCPconn} from "./types"
+import {type Dynbuf, type HTTPReq, type BodyReader, type TCPconn, type HTTPRes} from "./types"
 import { kMaxLength } from "buffer";
 
 class HTTPError extends Error{
@@ -121,7 +121,7 @@ function validateHeader(header : Buffer) : Boolean {
 
 const kMaxHeaderLength = 1024  * 8
 function cutMessage(buf: Dynbuf): HTTPReq | null{
-  // manages buffer
+  // extracts complete header via delimiters
   const idx = buf.data.subarray(0, buf.length).indexOf('\r\n\r\n')
   if (idx < 0) {
     if (buf.length >= kMaxHeaderLength) {
@@ -163,6 +163,8 @@ function readerfromConnLength(conn : TCPconn, buf : Dynbuf, remain : number) : B
 }
 
 function readerFromReq(conn: TCPconn, buf: Dynbuf, req: HTTPReq): BodyReader {
+  // gets Content-Length and passes it to readerfromConnLength as remain
+  // also checks for Transfer-Encoding
   const method = req.method
   let BodyAllowed = true
   if (method === 'GET' || method === 'HEAD') {
@@ -195,4 +197,55 @@ function readerFromReq(conn: TCPconn, buf: Dynbuf, req: HTTPReq): BodyReader {
   else {
     throw new HTTPError(501, "read to EOF")
   }
+}
+
+function encodeHTTPResp(res: HTTPRes): Buffer {
+  // create response for the request
+  const statusText = getStatustext(res.code)
+  let lines = [`HTTP/1.1 ${res.code} ${statusText}`]
+  
+    if(res.body.length >= 0){
+    lines.push(`Content-Length: ${res.body.length}`)
+    }
+  for (const h of res.headers) {
+    lines.push(h.toString('latin1'))
+  }
+  lines.push('')
+  
+  return Buffer.from(lines.join('\r\n'))
+}
+
+function getStatustext(code: number): string {
+  switch (code){
+    case 200:
+      return 'OK'
+    case 400:
+      return 'Bad Request'
+    case 404:
+      return 'Not Found'
+    case 413:
+      return 'Payload Too Large'
+    case 501:
+      return 'Not Implemented'
+    default: return 'Unknown'; 
+  }
+}
+
+async function writeHTTPResp(conn: TCPconn, res : HTTPRes) : Promise<void> {
+  if (res.body.length < 0) {
+    throw new Error('TODO : chunked encoding')
+  }
+  if (fieldGet(res.headers, 'Content-Length')) {
+    throw new Error("Content-Length is already set")
+  }
+  await soWrite(conn, encodeHTTPResp(res))
+  
+  while (true) {
+    const data = await res.body.read()
+    if (data.length === 0) break;
+    await soWrite(conn, data)
+  }
+}
+function readerFromMemory(data: Buffer): BodyReader{
+  
 }
