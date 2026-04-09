@@ -247,5 +247,16 @@ async function writeHTTPResp(conn: TCPconn, res : HTTPRes) : Promise<void> {
   }
 }
 function readerFromMemory(data: Buffer): BodyReader{
-  
+  let done = false
+  return {
+    length: data.length,
+    read : async () : Promise<Buffer> => {
+      if (done) {
+        return Buffer.from('')
+      } else {
+        done = true
+        return data
+      }
+    }
+  }
 }
