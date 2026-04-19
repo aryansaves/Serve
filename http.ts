@@ -1,6 +1,5 @@
 import * as net from "net"
 import {type Dynbuf, type HTTPReq, type BodyReader, type TCPconn, type HTTPRes} from "./types"
-import { kMaxLength } from "buffer";
 
 class HTTPError extends Error{
   code: number;
@@ -119,7 +118,8 @@ function validateHeader(header : Buffer) : Boolean {
   return true;
 }
 
-const kMaxHeaderLength = 1024  * 8
+const kMaxHeaderLength = 1024 * 8
+
 function cutMessage(buf: Dynbuf): HTTPReq | null{
   // extracts complete header via delimiters
   const idx = buf.data.subarray(0, buf.length).indexOf('\r\n\r\n')
@@ -258,5 +258,51 @@ function readerFromMemory(data: Buffer): BodyReader{
         return data
       }
     }
+  }
+}
+
+async function serveclient(conn : TCPconn)  {
+  const buf : Dynbuf = {data : Buffer.alloc(0), length : 0}
+
+  while (true) {
+    const msg: HTTPReq | null = cutMessage(buf) 
+    if (!msg) {
+      const data  = await soRead(conn)
+      bufPush(buf, data)
+      
+      if (data.length === 0) {
+        if (buf.length === 0) return
+      throw new HTTPError(400, "Unexpected EOF") 
+      }
+    continue 
+    }
+    const reqBody = readerFromReq(conn, buf, msg)
+    const res = await handleReq(msg, reqBody)
+    await writeHTTPResp(conn, res)
+    
+    if (msg.version === "1.0") {
+      return
+    }
+    while (true) {
+      const chunk = await reqBody.read()
+      if (chunk.length === 0) break; 
+    }
+  }
+}
+
+async function handleReq(req: HTTPReq, body: BodyReader) : Promise <HTTPRes>{
+  const uri = req.uri.toString('latin1')
+  
+  if (uri === "/echo") {
+    return {
+      code: 200,
+      headers: [Buffer.from("Server: My_server")],
+      body : body
+    }
+  }
+  else return {
+    code: 200,
+    headers: [Buffer.from("Server: My_Server")],
+    body : readerFromMemory(Buffer.from("Hello world\n use the uri to hit"))
   }
 }
