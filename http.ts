@@ -215,6 +215,7 @@ function encodeHTTPResp(res: HTTPRes): Buffer {
     lines.push(h.toString('latin1'))
   }
   lines.push('')
+  lines.push('')
   
   return Buffer.from(lines.join('\r\n'))
 }
