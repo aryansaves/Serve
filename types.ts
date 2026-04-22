@@ -28,8 +28,8 @@ export type TCPconn = {
 
     err: null | Error
     ended: boolean
-    reader: null | {
-        resolve: (value: Buffer) => void,
-        reject: (reason: Error) => void
-    }
+    reader: {
+        resolve: (data: Buffer) => void,
+        reject: (err: Error) => void
+    } | null
 }

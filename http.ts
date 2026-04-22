@@ -21,9 +21,11 @@ function bufPush(buf: Dynbuf, data: Buffer): void {
       cap *= 2
     }
     const grown = Buffer.alloc(cap)
-    buf.data.copy(grown, 0, 0)
+    buf.data.copy(grown, 0, 0, buf.length)
     buf.data = grown
   }
+  data.copy(buf.data, buf.length, 0)
+  buf.length = newlen
 }
 function bufPop(buf: Dynbuf, len: number): void {
   // pops the "len" number of character from front like a stack
@@ -122,7 +124,9 @@ const kMaxHeaderLength = 1024 * 8
 
 function cutMessage(buf: Dynbuf): HTTPReq | null{
   // extracts complete header via delimiters
+ 
   const idx = buf.data.subarray(0, buf.length).indexOf('\r\n\r\n')
+  
   if (idx < 0) {
     if (buf.length >= kMaxHeaderLength) {
       throw new HTTPError(413, "header is too large")
@@ -232,6 +236,7 @@ function getStatustext(code: number): string {
 }
 
 async function writeHTTPResp(conn: TCPconn, res : HTTPRes) : Promise<void> {
+
   if (res.body.length < 0) {
     throw new Error('TODO : chunked encoding')
   }
@@ -261,17 +266,19 @@ function readerFromMemory(data: Buffer): BodyReader{
   }
 }
 
-async function serveclient(conn : TCPconn)  {
+async function serveClient(conn : TCPconn)  {
   const buf : Dynbuf = {data : Buffer.alloc(0), length : 0}
 
   while (true) {
     const msg: HTTPReq | null = cutMessage(buf) 
     if (!msg) {
-      const data  = await soRead(conn)
+      const data = await soRead(conn)
       bufPush(buf, data)
       
       if (data.length === 0) {
-        if (buf.length === 0) return
+        if (buf.length === 0) {
+          return
+        }
       throw new HTTPError(400, "Unexpected EOF") 
       }
     continue 
@@ -279,7 +286,6 @@ async function serveclient(conn : TCPconn)  {
     const reqBody = readerFromReq(conn, buf, msg)
     const res = await handleReq(msg, reqBody)
     await writeHTTPResp(conn, res)
-    
     if (msg.version === "1.0") {
       return
     }
@@ -306,3 +312,106 @@ async function handleReq(req: HTTPReq, body: BodyReader) : Promise <HTTPRes>{
     body : readerFromMemory(Buffer.from("Hello world\n use the uri to hit"))
   }
 }
+
+async function newConn(socket : net.Socket) {
+  const conn = soInit(socket)
+  try {
+    await serveClient(conn)
+  } catch (exc) {
+    if (exc instanceof HTTPError) {
+      console.error('HTTP error:', exc)
+    
+      const errorResp = {
+        code: exc.code,
+        headers: [],
+        body: readerFromMemory(Buffer.from(exc.message + "\n"))
+      }
+      
+      try {
+        await writeHTTPResp(conn, errorResp)
+      } catch {
+        
+      }
+    } else {
+      console.error('Unexpected exception', exc)
+    }
+  }
+    finally {
+      socket.destroy()
+    }
+} 
+
+async function soRead(conn : TCPconn) : Promise<Buffer>{
+  return new Promise((resolve, reject) => {
+    if (conn.err) {
+      reject(conn.err)
+    }
+    if (conn.ended) {
+      resolve(Buffer.from(''))
+      return
+    }
+    if (conn.reader) {
+      reject(new Error('another reader exists'));  
+    }
+    conn.reader = {resolve, reject}
+  })
+}
+
+async function soWrite(conn: TCPconn, data: Buffer): Promise<void>{
+  return new Promise((resolve, reject) => {
+    if (conn.err) {
+      reject(conn.err)
+      return
+    }
+    try {
+      conn.socket.write(data, (err) => {
+        if (err) reject(err)
+        else resolve()
+      })
+    }
+    catch (err) {
+      reject(err)
+    }
+  })
+}
+
+function soInit(socket: net.Socket) : TCPconn{
+  const conn : TCPconn = {
+    socket: socket,
+    err: null,
+    ended: false,
+    reader : null
+  }
+  socket.on('data', (data: Buffer) => {
+    if (conn.reader) {
+      conn.reader.resolve(data)
+      conn.reader = null
+    }
+  })
+    socket.on('end', () => {
+      conn.ended = true
+      if (conn.reader) {
+        conn.reader.resolve(Buffer.from(''))
+        conn.reader = null
+      }
+    })
+  socket.on('error', (err: Error) => {
+    conn.err = err
+    if (conn.reader) {
+      conn.reader.reject(err)
+      conn.reader = null
+    }
+  })
+  return conn
+}
+
+const server = net.createServer({
+  noDelay : true,
+})
+server.on('connection', (socket: net.Socket) => {
+  newConn(socket)
+})
+const PORT = 1234
+server.listen(PORT, '127.0.0.1', () => {
+  console.log(`Server is Listening http://127.0.0.1:${PORT}`)
+})
