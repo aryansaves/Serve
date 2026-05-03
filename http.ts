@@ -1,5 +1,5 @@
 import * as net from "net"
-import {type Dynbuf, type HTTPReq, type BodyReader, type TCPconn, type HTTPRes} from "./types"
+import {type Dynbuf, type HTTPReq, type BodyReader, type TCPconn, type HTTPRes} from "./src/types"
 
 class HTTPError extends Error{
   code: number;
@@ -11,27 +11,6 @@ class HTTPError extends Error{
   }
 }
 
-function bufPush(buf: Dynbuf, data: Buffer): void { 
-  // Pushes new data to buffer
-  // expands the buffer acc to the new data length
-  const newlen = buf.length + data.length
-  if (buf.data.length < newlen) {
-    let cap = Math.max(buf.data.length, 32)
-    while (cap < newlen) {
-      cap *= 2
-    }
-    const grown = Buffer.alloc(cap)
-    buf.data.copy(grown, 0, 0, buf.length)
-    buf.data = grown
-  }
-  data.copy(buf.data, buf.length, 0)
-  buf.length = newlen
-}
-function bufPop(buf: Dynbuf, len: number): void {
-  // pops the "len" number of character from front like a stack
-  buf.data.copyWithin(0, len, buf.length)
-  buf.length -= len
-}
 function fieldGet(headers: Buffer[], key: string): Buffer | null {
   // search headers
   const keylower = key.toLowerCase()
@@ -252,20 +231,7 @@ async function writeHTTPResp(conn: TCPconn, res : HTTPRes) : Promise<void> {
     await soWrite(conn, data)
   }
 }
-function readerFromMemory(data: Buffer): BodyReader{
-  let done = false
-  return {
-    length: data.length,
-    read : async () : Promise<Buffer> => {
-      if (done) {
-        return Buffer.from('')
-      } else {
-        done = true
-        return data
-      }
-    }
-  }
-}
+
 
 async function serveClient(conn : TCPconn)  {
   const buf : Dynbuf = {data : Buffer.alloc(0), length : 0}
@@ -310,7 +276,7 @@ async function handleReq(req: HTTPReq, body: BodyReader) : Promise <HTTPRes>{
   else return {
     code: 200,
     headers: [Buffer.from("Server: My_Server")],
-    body : readerFromMemory(Buffer.from("Hello world\n use the uri to hit"))
+    body : readerFromMemory(Buffer.from("Hello world\nuse the uri to hit\n"))
   }
 }
 
