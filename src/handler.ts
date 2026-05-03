@@ -56,7 +56,7 @@ function handle404(): HTTPRes {
   }
 }
 
-export function router(req: HTTPReq, body: BodyReader) : HTTPRes {
+export async function router(req: HTTPReq, body: BodyReader) : HTTPRes {
   const uri = req.uri.toString('latin1')
   switch (uri) {
     case '/':
